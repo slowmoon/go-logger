@@ -14,7 +14,7 @@ import (
 )
 
 const FILE_ADAPTER_NAME = "file"
-const DEFAULT_FORMAT = "2016-01-02"
+const DEFAULT_FORMAT = "2006-01-02"
 
 const (
 	FILE_SLICE_DATE_NULL = ""
@@ -174,13 +174,13 @@ func (adapterFile *AdapterFile)filename()string {
 	var format string
 	switch adapterFile.config.DateSlice {
 	case FILE_SLICE_DATE_YEAR:
-		format = "2016"
+		format = "2006"
 	case FILE_SLICE_DATE_MONTH:
-		format = "2016-01"
+		format = "2006-01"
 	case FILE_SLICE_DATE_DAY:
-		format = "2016-01-02"
+		format = "2006-01-02"
 	case FILE_SLICE_DATE_HOUR:
-		format = "2016-01-02-15"
+		format = "2006-01-02-15"
 	default:
 		format = DEFAULT_FORMAT
 	}
