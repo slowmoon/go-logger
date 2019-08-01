@@ -318,13 +318,13 @@ func (fw *FileWriter) writeByConfig(config *FileConfig, loggerMsg *loggerMessage
 	fw.lock.Lock()
 	defer fw.lock.Unlock()
 
-	if config.DateSlice != "" {
-		// file slice by date
-		err := fw.sliceByDate(config.DateSlice)
-		if err != nil {
-			return err
-		}
-	}
+	//if config.DateSlice != "" {
+	//	// file slice by date
+	//	err := fw.sliceByDate(config.DateSlice)
+	//	if err != nil {
+	//		return err
+	//	}
+	//}
 
 	if config.MaxLine != 0 {
 		// file slice by line
