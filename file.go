@@ -1,17 +1,20 @@
 package go_logger
 
 import (
-	"sync"
+	"errors"
+	"fmt"
+	"github.com/robfig/cron"
+	"github.com/slowmoon/go-logger/utils"
 	"os"
 	"path"
-	"strings"
-	"time"
-	"errors"
-	"github.com/phachon/go-logger/utils"
 	"reflect"
+	"strings"
+	"sync"
+	"time"
 )
 
 const FILE_ADAPTER_NAME = "file"
+const DEFAULT_FORMAT = "2016-01-02"
 
 const (
 	FILE_SLICE_DATE_NULL = ""
@@ -29,6 +32,7 @@ const (
 type AdapterFile struct {
 	write map[int]*FileWriter
 	config *FileConfig
+	Cron   *cron.Cron
 }
 
 // file writer
@@ -41,8 +45,9 @@ type FileWriter struct {
 }
 
 func NewFileWrite(fn string) *FileWriter {
+
 	return &FileWriter{
-		filename: fn,
+		filename: fn ,
 	}
 }
 
@@ -100,6 +105,13 @@ var fileSliceDateMapping = map[string]int{
 	FILE_SLICE_DATE_HOUR: 3,
 }
 
+var dateSliceCronSpec = map[string]string{
+	FILE_SLICE_DATE_YEAR: "@yearly",
+	FILE_SLICE_DATE_MONTH: "@monthly",
+	FILE_SLICE_DATE_DAY: "@daily",
+	FILE_SLICE_DATE_HOUR: "@hourly",
+}
+
 func NewAdapterFile() LoggerAbstract {
 	return &AdapterFile{
 		write: map[int]*FileWriter{},
@@ -147,12 +159,56 @@ func (adapterFile *AdapterFile) Init(fileConfig Config) error {
 	}
 
 	if adapterFile.config.Filename != "" {
-		fw := NewFileWrite(adapterFile.config.Filename)
+		//fw := NewFileWrite(adapterFile.config.Filename)
+		fw := NewFileWrite(adapterFile.filename())
 		fw.initFile()
 		adapterFile.write[FILE_ACCESS_LEVEL] = fw
 	}
+	adapterFile.Cron = cron.New()
+	go adapterFile.cutLog()
 
 	return nil
+}
+
+func (adapterFile *AdapterFile)filename()string {
+	var format string
+	switch adapterFile.config.DateSlice {
+	case FILE_SLICE_DATE_YEAR:
+		format = "2016"
+	case FILE_SLICE_DATE_MONTH:
+		format = "2016-01"
+	case FILE_SLICE_DATE_DAY:
+		format = "2016-01-02"
+	case FILE_SLICE_DATE_HOUR:
+		format = "2016-01-02-15"
+	default:
+		format = DEFAULT_FORMAT
+	}
+	name := adapterFile.config.Filename
+	ext := path.Ext(name)
+
+	return fmt.Sprintf("%s.%s%s", strings.Replace(name, ext, "", 1), time.Now().Format(format), ext)
+}
+
+func (adapterFile *AdapterFile)cutLog()  {
+	if adapterFile.Cron != nil {
+		exp := dateSliceCronSpec[adapterFile.config.DateSlice]
+		adapterFile.Cron.AddFunc(exp, adapterFile.cut)
+		adapterFile.Cron.Run()
+	}
+}
+
+func (adapterFile *AdapterFile)cut()  {
+
+    for level, filewriter := range adapterFile.write {
+         //filewriter.sliceByDate(adapterFile.config.DateSlice)
+         if level == FILE_ACCESS_LEVEL {
+         	  writer := filewriter.writer
+         	  filewriter.filename = adapterFile.filename()
+         	  filewriter.initFile()
+         	  writer.Close()
+		 }
+	}
 }
 
 // Write
@@ -269,6 +325,7 @@ func (fw *FileWriter) writeByConfig(config *FileConfig, loggerMsg *loggerMessage
 			return err
 		}
 	}
+
 	if config.MaxLine != 0 {
 		// file slice by line
 		err := fw.sliceByFileLines(config.MaxLine)
@@ -304,6 +361,7 @@ func (fw *FileWriter) writeByConfig(config *FileConfig, loggerMsg *loggerMessage
 	return nil
 }
 
+
 //slice file by date (y, m, d, h, i, s), rename file is file_time.log and recreate file
 func (fw *FileWriter) sliceByDate(dataSlice string) error {
 
@@ -317,22 +375,22 @@ func (fw *FileWriter) sliceByDate(dataSlice string) error {
 	if (dataSlice == FILE_SLICE_DATE_YEAR) &&
 		(startTime.Year() != nowTime.Year()) {
 		isHaveSlice = true
-		oldFilename = strings.Replace(filename, filenameSuffix, "", 1) + "_" + startTime.Format("2006") + filenameSuffix
+		oldFilename = strings.Replace(filename, filenameSuffix, "", 1) + "." + startTime.Format("2006") + filenameSuffix
 	}
 	if (dataSlice == FILE_SLICE_DATE_MONTH) &&
 		(startTime.Format("200601") != nowTime.Format("200601")) {
 		isHaveSlice = true
-		oldFilename = strings.Replace(filename, filenameSuffix, "", 1) + "_" + startTime.Format("200601") + filenameSuffix
+		oldFilename = strings.Replace(filename, filenameSuffix, "", 1) + "." + startTime.Format("200601") + filenameSuffix
 	}
 	if (dataSlice == FILE_SLICE_DATE_DAY) &&
 		(startTime.Format("20060102") != nowTime.Format("20060102")) {
 		isHaveSlice = true
-		oldFilename = strings.Replace(filename, filenameSuffix, "", 1) + "_" + startTime.Format("20060102") + filenameSuffix
+		oldFilename = strings.Replace(filename, filenameSuffix, "", 1) + "." + startTime.Format("20060102") + filenameSuffix
 	}
 	if (dataSlice == FILE_SLICE_DATE_HOUR) &&
 		(startTime.Format("2006010215") != startTime.Format("2006010215")) {
 		isHaveSlice = true
-		oldFilename = strings.Replace(filename, filenameSuffix, "", 1) + "_" + startTime.Format("2006010215") + filenameSuffix
+		oldFilename = strings.Replace(filename, filenameSuffix, "", 1) + "." + startTime.Format("2006010215") + filenameSuffix
 	}
 
 	if isHaveSlice == true  {
